@@ -10,7 +10,7 @@ document.querySelector('.info-link').addEventListener('click', function (event) 
     document.querySelector('.cta-button').addEventListener('click', function () {
         console.log('Button clicked!'); // Log when the button is clicked
         homepage.classList.add('hidden-up'); // Add the class to move the container off-screen
-        
+ 
 
     });
 });

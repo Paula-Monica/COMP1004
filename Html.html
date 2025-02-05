@@ -33,9 +33,115 @@
     </div>
   </div>
   <div class="mainpage">
-    <div class="CreateTask"></div>
-    <div class="CreatedTasks"></div>
-    <div class="Timetable"></div>
+    <div class="CreateTask">
+      <div class="TaskName-input-container">
+        <input type="text" class="TaskName-input" placeholder="Task Name...">
+        <div class="TaskName-icon">+</div>
+      </div>
+      <div class="hour-wrapper">
+        <label class="SelectHour">Select Hour:</label>
+        <select class="hour-dropdown">
+          <option value="1h">1h</option>
+          <option value="2h">2h</option>
+          <option value="3h">3h</option>
+          <option value="4h">4h</option>
+          <option value="5h">5h</option>
+          <option value="6h">6h</option>
+          <option value="7h">7h</option>
+          <option value="8h">8h</option>
+          <option value="9h">9h</option>
+          <option value="10h">10h</option>
+        </select>
+      </div>
+      <div class="NoTaskName">
+        <p>Enter a task name!</p>
+      </div>
+      <div class="HourSplit-wrapper">
+        <label class="HourSplit">Split into:</label>
+        <label>
+          <input type="radio" name="hours" value="1h" checked>
+          1h
+        </label>
+        <label>
+          <input type="radio" name="hours" value="2h" disabled>
+          2h
+        </label>
+        <label>
+          <input type="radio" name="hours" value="3h" disabled>
+          3h
+        </label>
+        <label>
+          <input type="radio" name="hours" value="4h" disabled>
+          4h
+        </label>
+      </div>
+    </div>
+    <div class="CreatedTasks">
+      <div class= "Trash-Container">
+        <img src="images\bin.png" alt="Trash-icon" />
+      </div>
+      <div class="Task1_container">
+        <div class="Task1"></div>"
+      </div>
+      <div class="Task2_container">
+        <div class="Task2"></div>"
+      </div>
+      <div class="Task3_container">
+        <div class="Task3"></div>"
+      </div>
+      <div class="Task4_container">
+        <div class="Task4"></div>"
+      </div>
+      <div class="Task5_container">
+        <div class="Task5"></div>"
+      </div>
+      <div class="Task6_container">
+        <div class="Task6"></div>"
+      </div>
+      <div class="Task7_container">
+        <div class="Task7"></div>"
+      </div>
+      <div class="Task8_container">
+        <div class="Task8"></div>"
+      </div>
+      <div class="Task9_container">
+        <div class="Task9"></div>"
+      </div>
+      <div class="Task10_container">
+        <div class="Task10"></div>"
+      </div>
+      </div>
+    </div>
+    <div class="Timetable">
+      <table class="timetable-grid">
+        <thead>
+          <tr>
+            <th></th>
+            <th>Monday</th>
+            <th>Tuesday</th>
+            <th>Wednesday</th>
+            <th>Thursday</th>
+            <th>Friday</th>
+            <th>Saturday</th>
+            <th>Sunday</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="time-label">Morning</td>
+            <td></td> <td></td> <td></td> <td></td> <td></td> <td></td> <td></td>
+          </tr>
+          <tr>
+            <td class="time-label">Afternoon</td>
+            <td></td> <td></td> <td></td> <td></td> <td></td> <td></td> <td></td>
+          </tr>
+          <tr>
+            <td class="time-label">Evening</td>
+            <td></td> <td></td> <td></td> <td></td> <td></td> <td></td> <td></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
     <div class="Key"></div>
   </div>
   <script src="java.js"></script>

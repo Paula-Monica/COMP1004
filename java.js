@@ -11,7 +11,7 @@ document.addEventListener('DOMContentLoaded', function () {
   document.querySelector('.cta-button').addEventListener('click', function () {
       homepage.classList.add('hidden-up'); 
 
-      // Wait for 2 seconds, then remove the elements
+      //Wait for 2 seconds, then remove the elements
       setTimeout(() => {
           homepage.remove(); 
       }, 2000);
@@ -37,20 +37,151 @@ window.addEventListener('resize', syncToCombinedHeight);
 
 let taskNameInputted = false;
 let hourSplitSelected = 1;
-
+let tasks = [];
 
 const TaskName = document.querySelector('.TaskName-input');
 const icon = document.querySelector('.TaskName-icon');
 const NoTaskName = document.querySelector('.NoTaskName');
+const NoSplitSelected = document.querySelector('.NoSplitSelected');
 
+//Create tasks when all conditons for creating tasks are met
 icon.addEventListener('click', () => {
-  if (TaskName.value.trim() === '') {
+  const taskNameEmpty = TaskName.value.trim() === '';
+  const splitNotSelected = hourSplitSelected == false;
+
+  if (taskNameEmpty) {
     NoTaskName.style.visibility = 'visible';
   } else {
     NoTaskName.style.visibility = 'hidden';
-    taskNameInputted = true;
+  }
+
+  if (splitNotSelected) {
+    NoSplitSelected.style.visibility = 'visible';
+  } else {
+    NoSplitSelected.style.visibility = 'hidden';
+  }
+
+  if (!taskNameEmpty && !splitNotSelected) {
+    //Check if any .TaskX container has segments
+    let taskContainers = document.querySelectorAll('[class^="Task"]'); // Selects all task containers
+    let tasksExist = false;
+
+    taskContainers.forEach(container => {
+      if (container.querySelector('.segment')) { //check if segments exist
+        tasksExist = true;
+      }
+    });
+
+    if (tasksExist) {
+      alert("Please clear previous tasks before adding a new one.");
+      return; //Stop execution if segments exist
+    }
+  
+    const CalculateNoOfTasks = hoursPerWeek / hourSplitSelected;
+
+    let newTask = {
+      id: tasks.length + 1,
+      name: TaskName.value, //Get task name directly
+      totalDuration: hoursPerWeek, //Store total duration
+      segments: [], //Array to store task segments
+      assigned: false,
+    };
+
+    for (let i = 0; i < CalculateNoOfTasks; i++) {
+      newTask.segments.push({
+        segmentId: i + 1,
+        duration: hourSplitSelected, //Duration for each segment
+        assigned: false, //If assigned to the timetable
+      });
+    }
+
+    tasks.push(newTask); //Add task to the task list
+    displayTaskSegments(newTask); //Display segments
   }
 });
+
+//Shows created tasks
+function displayTaskSegments(task) {
+  task.segments.forEach((segment, index) => {
+    const taskContainer = document.querySelector(`.Task${index + 1}`);
+
+    if (!taskContainer) {
+      console.error(`Error: No task container found for Task${index + 1}`);
+      return;
+    }
+
+    //Create segment element
+    let segmentDiv = document.createElement("div");
+    segmentDiv.classList.add("segment");
+
+    //Task Name
+    let taskNameDiv = document.createElement("div");
+    taskNameDiv.classList.add("task-name");
+    taskNameDiv.textContent = task.name;
+
+    //Hour Split
+    let hourSplitDiv = document.createElement("div");
+    hourSplitDiv.classList.add("hour-split");
+    hourSplitDiv.textContent = `Duration: ${segment.duration}h`;
+
+    segmentDiv.appendChild(taskNameDiv);
+    segmentDiv.appendChild(hourSplitDiv);
+
+    // Only add dropdown and complete button to first segment
+    if (index === 0) {
+      //Create dropdown menu
+      let categoryDropdown = document.createElement("select");
+      categoryDropdown.classList.add("category-dropdown");
+
+      let optionWork = document.createElement("option");
+      optionWork.value = "work";
+      optionWork.textContent = "Work";
+
+      let optionFree = document.createElement("option");
+      optionFree.value = "free";
+      optionFree.textContent = "Free";
+
+      categoryDropdown.appendChild(optionWork);
+      categoryDropdown.appendChild(optionFree);
+
+      //Create complete button
+      let completeButton = document.createElement("button");
+      completeButton.classList.add("complete-btn");
+      completeButton.textContent = "Complete";
+
+      //delete the entire task
+      completeButton.addEventListener("click", () => {
+        deleteTask(task.id);
+      });
+
+      segmentDiv.appendChild(categoryDropdown);
+      segmentDiv.appendChild(completeButton);
+    }
+
+    taskContainer.appendChild(segmentDiv);
+  });
+}
+
+function deleteTask(taskId) {
+  // Find the task by ID
+  const taskIndex = tasks.findIndex(task => task.id === taskId);
+  
+  if (taskIndex !== -1) {
+    // Get the task being deleted
+    const deletedTask = tasks[taskIndex];
+
+    // Remove the task from the list
+    tasks.splice(taskIndex, 1);
+
+    // Remove only the segments related to this task
+    deletedTask.segments.forEach((segment, index) => {
+      const taskContainer = document.querySelector(`.Task${index + 1}`);
+      if (taskContainer) {
+        taskContainer.innerHTML = ""; // Clear segment inside TaskX
+      }
+    });
+  }
+}
 
 let hoursPerWeek = 1;
 const hourDropdown = document.querySelector('.hour-dropdown');
@@ -75,6 +206,7 @@ radios.forEach(radio => {
   });
 });
 
+//Radio buttons for split hours, make only ones that numerically make sense selectable
 function EditSplitHours(h) {
   const radio1h = document.querySelector('input[value="1h"]');
   const radio2h = document.querySelector('input[value="2h"]');
@@ -112,6 +244,7 @@ function EditSplitHours(h) {
   }
 }
 
+//Turn selected grids green on press
 document.addEventListener("DOMContentLoaded", function () {
   const cells = document.querySelectorAll(".timetable-grid td:not(:first-child)");
   const selectedColor = "rgb(193, 219, 181)"; 
@@ -121,10 +254,22 @@ document.addEventListener("DOMContentLoaded", function () {
       let currentColor = window.getComputedStyle(this).backgroundColor;
 
       if (currentColor === selectedColor) {
-        this.style.backgroundColor = ""; // Resets to original
+        this.style.backgroundColor = ""; // Reset to original colour
       } else {
         this.style.backgroundColor = selectedColor;
       }
     });
   });
+});
+
+//Trash icon clears all segments not within timetable
+document.querySelector(".Trash-Container").addEventListener("click", () => {
+  document.querySelectorAll('.Task1, .Task2, .Task3, .Task4, .Task5, .Task6, .Task7, .Task8, .Task9, .Task10')
+    .forEach(container => {
+      while (container.firstChild) {
+        container.removeChild(container.firstChild);
+      }
+    });
+    //Only remove tasks which have segments not assigned to table
+  tasks = tasks.filter(task => task.segments.every(segment => !segment.assigned));
 });

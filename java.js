@@ -114,6 +114,13 @@ function displayTaskSegments(task) {
     let segmentDiv = document.createElement("div");
     segmentDiv.classList.add("segment");
 
+    //Assign task and segment IDs for drag-and-drop tracking
+    segmentDiv.dataset.taskId = task.id;
+    segmentDiv.dataset.segmentId = segment.segmentId;
+
+    //Make segment draggable
+    segmentDiv.draggable = true;
+
     //Task Name
     let taskNameDiv = document.createElement("div");
     taskNameDiv.classList.add("task-name");
@@ -127,9 +134,8 @@ function displayTaskSegments(task) {
     segmentDiv.appendChild(taskNameDiv);
     segmentDiv.appendChild(hourSplitDiv);
 
-    // Only add dropdown and complete button to first segment
+    //Only add dropdown and complete button to first segment
     if (index === 0) {
-      //Create dropdown menu
       let categoryDropdown = document.createElement("select");
       categoryDropdown.classList.add("category-dropdown");
 
@@ -144,12 +150,10 @@ function displayTaskSegments(task) {
       categoryDropdown.appendChild(optionWork);
       categoryDropdown.appendChild(optionFree);
 
-      //Create complete button
       let completeButton = document.createElement("button");
       completeButton.classList.add("complete-btn");
       completeButton.textContent = "Complete";
 
-      //delete the entire task
       completeButton.addEventListener("click", () => {
         deleteTask(task.id);
       });
@@ -157,6 +161,14 @@ function displayTaskSegments(task) {
       segmentDiv.appendChild(categoryDropdown);
       segmentDiv.appendChild(completeButton);
     }
+
+    //Attach drag event
+    segmentDiv.addEventListener("dragstart", (event) => {
+      event.dataTransfer.setData("text/plain", JSON.stringify({
+        taskId: task.id,
+        segmentId: segment.segmentId
+      }));
+    });
 
     taskContainer.appendChild(segmentDiv);
   });
@@ -173,12 +185,22 @@ function deleteTask(taskId) {
     // Remove the task from the list
     tasks.splice(taskIndex, 1);
 
-    // Remove only the segments related to this task
-    deletedTask.segments.forEach((segment, index) => {
-      const taskContainer = document.querySelector(`.Task${index + 1}`);
+    // Remove all segments related to this task from the task containers
+    deletedTask.segments.forEach((segment) => {
+      // Remove from task containers
+      const taskContainer = document.querySelector(`.Task${segment.segmentId}`);
       if (taskContainer) {
         taskContainer.innerHTML = ""; // Clear segment inside TaskX
       }
+
+      // Remove from timetable (if dropped there)
+      const timetableCells = document.querySelectorAll(".dropzone");
+      timetableCells.forEach(cell => {
+        const existingSegment = cell.querySelector(`.segment[data-task-id='${taskId}'][data-segment-id='${segment.segmentId}']`);
+        if (existingSegment) {
+          cell.removeChild(existingSegment); // Remove from timetable cell
+        }
+      });
     });
   }
 }
@@ -200,7 +222,7 @@ const radios = document.querySelectorAll('input[name="hours"]');
 radios.forEach(radio => {
   radio.addEventListener('change', () => {
     if (radio.checked) {
-      // Extract the number from the value 
+      //Extract the number from the value 
       hourSplitSelected = parseInt(radio.value); 
     }
   });
@@ -214,38 +236,39 @@ function EditSplitHours(h) {
   const radio4h = document.querySelector('input[value="4h"]');
 
   if (h % 2 !== 0) {
-    radio2h.disabled = true; // Disable 2h if not divisible by 2
+    radio2h.disabled = true; //Disable 2h if not divisible by 2
     if (radio2h.checked) {
       radio2h.checked = false;
       hourSplitSelected = false;
     } 
   } else {
-    radio2h.disabled = false; // Enable 2h if divisible by 2
+    radio2h.disabled = false; //Enable 2h if divisible by 2
   }
 
   if (h % 3 !== 0) {
-    radio3h.disabled = true; // Disable 3h if not divisible by 3
+    radio3h.disabled = true; //Disable 3h if not divisible by 3
     if (radio3h.checked) {
       radio3h.checked = false;
       hourSplitSelected = false;
     } 
   } else {
-    radio3h.disabled = false; // Enable 3h if divisible by 3
+    radio3h.disabled = false; //Enable 3h if divisible by 3
   }
 
   if (h % 4 !== 0) {
-    radio4h.disabled = true; // Disable 4h if not divisible by 4
+    radio4h.disabled = true; //Disable 4h if not divisible by 4
     if (radio4h.checked) {
       radio4h.checked = false;
       hourSplitSelected = false;
     } 
   } else {
-    radio4h.disabled = false; // Enable 4h if divisible by 4
+    radio4h.disabled = false; //Enable 4h if divisible by 4
   }
 }
 
 //Turn selected grids green on press
 document.addEventListener("DOMContentLoaded", function () {
+  enableDropzones();
   const cells = document.querySelectorAll(".timetable-grid td:not(:first-child)");
   const selectedColor = "rgb(193, 219, 181)"; 
 
@@ -273,3 +296,110 @@ document.querySelector(".Trash-Container").addEventListener("click", () => {
     //Only remove tasks which have segments not assigned to table
   tasks = tasks.filter(task => task.segments.every(segment => !segment.assigned));
 });
+
+
+function displayTaskSegments(task) {
+  task.segments.forEach((segment, index) => {
+    const taskContainer = document.querySelector(`.Task${index + 1}`);
+
+    if (!taskContainer) {
+      console.error(`Error: No task container found for Task${index + 1}`);
+      return;
+    }
+
+    let segmentDiv = document.createElement("div");
+    segmentDiv.classList.add("segment");
+    
+    //Assign task and segment IDs for drag-and-drop tracking
+    segmentDiv.dataset.taskId = task.id;
+    segmentDiv.dataset.segmentId = segment.segmentId;
+
+    //Make segment draggable
+    segmentDiv.draggable = true;
+
+    let taskNameDiv = document.createElement("div");
+    taskNameDiv.classList.add("task-name");
+    taskNameDiv.textContent = task.name;
+
+    let hourSplitDiv = document.createElement("div");
+    hourSplitDiv.classList.add("hour-split");
+    hourSplitDiv.textContent = `Duration: ${segment.duration}h`;
+
+    segmentDiv.appendChild(taskNameDiv);
+    segmentDiv.appendChild(hourSplitDiv);
+
+    //Only add dropdown and complete button to first segment
+    if (index === 0) {
+      let categoryDropdown = document.createElement("select");
+      categoryDropdown.classList.add("category-dropdown");
+
+      let optionWork = document.createElement("option");
+      optionWork.value = "work";
+      optionWork.textContent = "Work";
+
+      let optionFree = document.createElement("option");
+      optionFree.value = "free";
+      optionFree.textContent = "Free";
+
+      categoryDropdown.appendChild(optionWork);
+      categoryDropdown.appendChild(optionFree);
+
+      let completeButton = document.createElement("button");
+      completeButton.classList.add("complete-btn");
+      completeButton.textContent = "Complete";
+
+      completeButton.addEventListener("click", () => {
+        deleteTask(task.id);
+      });
+
+      segmentDiv.appendChild(categoryDropdown);
+      segmentDiv.appendChild(completeButton);
+    }
+
+    // Attach drag event for the segment
+    segmentDiv.addEventListener("dragstart", (event) => {
+      event.dataTransfer.setData("text/plain", JSON.stringify({
+        taskId: task.id,
+        segmentId: segment.segmentId
+      }));
+    });
+
+    taskContainer.appendChild(segmentDiv);
+  });
+}
+
+//Enable dropzones to accept dropped segments
+function enableDropzones() {
+  document.querySelectorAll(".dropzone").forEach(dropzone => {
+    dropzone.addEventListener("dragover", (event) => {
+      event.preventDefault(); 
+      event.dataTransfer.dropEffect = "move"; 
+    });
+
+    dropzone.addEventListener("drop", (event) => {
+      event.preventDefault();
+
+      //Get the dragged segment
+      let segmentData = JSON.parse(event.dataTransfer.getData("text/plain"));
+      let draggedSegment = document.querySelector(`.segment[data-task-id='${segmentData.taskId}'][data-segment-id='${segmentData.segmentId}']`);
+
+      //Append the dragged segment to the dropzone
+      if (draggedSegment) {
+        dropzone.appendChild(draggedSegment); //Append the segment to the dropzone
+        draggedSegment.style.position = "static"; //Set position to static
+        draggedSegment.style.marginBottom = '5px'; 
+
+
+        draggedSegment.style.height = '150px'; 
+
+        let task = tasks.find(t => t.id === segmentData.taskId);
+        if (task) {
+          let segment = task.segments.find(s => s.segmentId === segmentData.segmentId);
+          if (segment) {
+            segment.assigned = true; //Mark as assigned
+          }
+        }
+      }
+    });
+  });
+}

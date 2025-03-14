@@ -273,7 +273,12 @@ document.addEventListener("DOMContentLoaded", function () {
   const selectedColor = "rgb(193, 219, 181)"; 
 
   cells.forEach(cell => {
-    cell.addEventListener("click", function () {
+    cell.addEventListener("click", function (event) {
+      // Check if the click happened inside a segment
+      if (event.target.closest(".segment")) {
+        return; // Stop function execution if a segment was clicked
+      }
+
       let currentColor = window.getComputedStyle(this).backgroundColor;
 
       if (currentColor === selectedColor) {
@@ -283,20 +288,56 @@ document.addEventListener("DOMContentLoaded", function () {
       }
     });
   });
+
+  // Prevent segment clicks from affecting the cell
+  document.querySelectorAll(".segment").forEach(segment => {
+    segment.addEventListener("click", function (event) {
+      event.stopPropagation(); // Stop the event from reaching the table cell
+    });
+  });
 });
 
 //Trash icon clears all segments not within timetable
 document.querySelector(".Trash-Container").addEventListener("click", () => {
+  // Get all task segments inside .Task1, .Task2, ..., .Task10
+  const taskSegments = document.querySelectorAll('.Task1 .segment, .Task2 .segment, .Task3 .segment, .Task4 .segment, .Task5 .segment, .Task6 .segment, .Task7 .segment, .Task8 .segment, .Task9 .segment, .Task10 .segment');
+
+  // Collect task IDs of tasks that have segments in those containers
+  const tasksToRemove = new Set();
+  taskSegments.forEach(segment => {
+    const taskId = segment.getAttribute("data-task-id");
+    if (taskId) {
+      tasksToRemove.add(taskId);
+    }
+  });
+
+  // Remove all segments from task containers
   document.querySelectorAll('.Task1, .Task2, .Task3, .Task4, .Task5, .Task6, .Task7, .Task8, .Task9, .Task10')
     .forEach(container => {
       while (container.firstChild) {
         container.removeChild(container.firstChild);
       }
     });
-    //Only remove tasks which have segments not assigned to table
-  tasks = tasks.filter(task => task.segments.every(segment => !segment.assigned));
+
+  // Remove all segments from the timetable that belong to the removed tasks
+  document.querySelectorAll(".dropzone .segment").forEach(segment => {
+    const taskId = segment.getAttribute("data-task-id");
+    if (taskId && tasksToRemove.has(taskId)) {
+      segment.remove();
+    }
+  });
+
+  // Remove tasks from the tasks array
+  tasks = tasks.filter(task => !tasksToRemove.has(task.id));
 });
 
+// Remove segments from the timetable based on removed tasks
+document.querySelectorAll(".dropzone").forEach(cell => {
+  removedTaskIds.forEach(taskId => {
+    const existingSegments = cell.querySelectorAll(`.segment[data-task-id='${taskId}']`);
+    existingSegments.forEach(segment => segment.remove()); // Remove all matching segments
+  });
+});
 
 function displayTaskSegments(task) {
   task.segments.forEach((segment, index) => {
@@ -372,34 +413,42 @@ function displayTaskSegments(task) {
 function enableDropzones() {
   document.querySelectorAll(".dropzone").forEach(dropzone => {
     dropzone.addEventListener("dragover", (event) => {
-      event.preventDefault(); 
-      event.dataTransfer.dropEffect = "move"; 
+      // Check if the dropzone is green
+      let bgColor = window.getComputedStyle(dropzone).backgroundColor;
+      if (bgColor === "rgb(193, 219, 181)") { 
+        event.preventDefault(); // Allow dropping only if it's green
+        event.dataTransfer.dropEffect = "move"; // Visual indication
+      }
     });
 
     dropzone.addEventListener("drop", (event) => {
-      event.preventDefault();
+      event.preventDefault(); // Prevent default action
+      
+      // Check again if the dropzone is green before proceeding
+      let bgColor = window.getComputedStyle(event.target).backgroundColor;
+      if (bgColor !== "rgb(193, 219, 181)") return; 
 
-      //Get the dragged segment
+      // Get the dragged segment
       let segmentData = JSON.parse(event.dataTransfer.getData("text/plain"));
       let draggedSegment = document.querySelector(`.segment[data-task-id='${segmentData.taskId}'][data-segment-id='${segmentData.segmentId}']`);
 
-      //Append the dragged segment to the dropzone
+      // Append the dragged segment to the dropzone
       if (draggedSegment) {
-        dropzone.appendChild(draggedSegment); //Append the segment to the dropzone
-        draggedSegment.style.position = "static"; //Set position to static
-        draggedSegment.style.marginBottom = '5px'; 
+        dropzone.appendChild(draggedSegment);
+        draggedSegment.style.position = "static";
+        draggedSegment.style.marginBottom = '5px';
+        draggedSegment.style.height = '120px';
 
-
-        draggedSegment.style.height = '150px'; 
-
+        // Mark the segment as assigned in the task array
         let task = tasks.find(t => t.id === segmentData.taskId);
         if (task) {
           let segment = task.segments.find(s => s.segmentId === segmentData.segmentId);
           if (segment) {
-            segment.assigned = true; //Mark as assigned
+            segment.assigned = true;
           }
         }
       }
     });
   });
 }
+

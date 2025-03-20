@@ -5,6 +5,7 @@ document.querySelector('.info-link').addEventListener('click', function (event) 
   infoDiv.classList.remove('hidden'); 
 });
 
+
 //Moves welcome page off screen and removes it
 document.addEventListener('DOMContentLoaded', function () {
   const homepage = document.querySelector('.homepage');
@@ -48,6 +49,7 @@ const NoSplitSelected = document.querySelector('.NoSplitSelected');
 icon.addEventListener('click', () => {
   const taskNameEmpty = TaskName.value.trim() === '';
   const splitNotSelected = hourSplitSelected == false;
+  console.log("Add button was pressed!");
 
   if (taskNameEmpty) {
     NoTaskName.style.visibility = 'visible';
@@ -139,16 +141,27 @@ function displayTaskSegments(task) {
       let categoryDropdown = document.createElement("select");
       categoryDropdown.classList.add("category-dropdown");
 
-      let optionWork = document.createElement("option");
-      optionWork.value = "work";
-      optionWork.textContent = "Work";
+      // Retrieve existing categories
+      const existingCategories = document.querySelectorAll(".categories-container .category-label input[type='text']");
 
-      let optionFree = document.createElement("option");
-      optionFree.value = "free";
-      optionFree.textContent = "Free";
+      // Add a "None" option
+      let optionNone = document.createElement("option");
+      optionNone.value = "None";
+      optionNone.textContent = "None";
+      categoryDropdown.appendChild(optionNone);
 
-      categoryDropdown.appendChild(optionWork);
-      categoryDropdown.appendChild(optionFree);
+      // Add all existing categories
+      existingCategories.forEach(categoryInput => {
+        let categoryName = categoryInput.value;
+        let categoryColor = categoryInput.nextElementSibling.value; // Get color from color picker
+
+        let categoryOption = document.createElement("option");
+        categoryOption.value = categoryName;
+        categoryOption.textContent = categoryName;
+        categoryOption.dataset.color = categoryColor;
+
+        categoryDropdown.appendChild(categoryOption);
+      });
 
       let completeButton = document.createElement("button");
       completeButton.classList.add("complete-btn");
@@ -329,14 +342,14 @@ document.querySelector(".Trash-Container").addEventListener("click", () => {
 
   // Remove tasks from the tasks array
   tasks = tasks.filter(task => !tasksToRemove.has(task.id));
-});
 
 // Remove segments from the timetable based on removed tasks
 document.querySelectorAll(".dropzone").forEach(cell => {
-  removedTaskIds.forEach(taskId => {
+  tasksToRemove.forEach(taskId => {
     const existingSegments = cell.querySelectorAll(`.segment[data-task-id='${taskId}']`);
     existingSegments.forEach(segment => segment.remove()); // Remove all matching segments
   });
+});
 });
 
 function displayTaskSegments(task) {
@@ -374,16 +387,27 @@ function displayTaskSegments(task) {
       let categoryDropdown = document.createElement("select");
       categoryDropdown.classList.add("category-dropdown");
 
-      let optionWork = document.createElement("option");
-      optionWork.value = "work";
-      optionWork.textContent = "Work";
+      // Retrieve existing categories
+      const existingCategories = document.querySelectorAll(".categories-container .category-label input[type='text']");
 
-      let optionFree = document.createElement("option");
-      optionFree.value = "free";
-      optionFree.textContent = "Free";
+      // Add a "None" option
+      let optionNone = document.createElement("option");
+      optionNone.value = "None";
+      optionNone.textContent = "None";
+      categoryDropdown.appendChild(optionNone);
 
-      categoryDropdown.appendChild(optionWork);
-      categoryDropdown.appendChild(optionFree);
+      // Add all existing categories
+      existingCategories.forEach(categoryInput => {
+        let categoryName = categoryInput.value;
+        let categoryColor = categoryInput.nextElementSibling.value; // Get color from color picker
+
+        let categoryOption = document.createElement("option");
+        categoryOption.value = categoryName;
+        categoryOption.textContent = categoryName;
+        categoryOption.dataset.color = categoryColor;
+
+        categoryDropdown.appendChild(categoryOption);
+      });
 
       let completeButton = document.createElement("button");
       completeButton.classList.add("complete-btn");
@@ -450,5 +474,134 @@ function enableDropzones() {
       }
     });
   });
+};
+
+// Function to update all dropdowns and segment colors when a category is added or modified
+function updateAllDropdowns(categoryName, color, oldCategoryName = null) {
+  document.querySelectorAll(".category-dropdown").forEach(dropdown => {
+    let existingOption = dropdown.querySelector(`option[value="${oldCategoryName || categoryName}"]`);
+
+    if (existingOption) {
+      existingOption.value = categoryName;
+      existingOption.textContent = categoryName;
+      existingOption.dataset.color = color;
+    } else {
+      let newOption = document.createElement("option");
+      newOption.value = categoryName;
+      newOption.textContent = categoryName;
+      newOption.dataset.color = color;
+      dropdown.appendChild(newOption);
+    }
+  });
+
+  // Update all segments with the new category color
+  updateAllTaskSegments(categoryName, color);
 }
 
+// Function to update the color of all segments linked to a category
+function updateAllTaskSegments(categoryName, color) {
+  document.querySelectorAll(".segment").forEach(segment => {
+    const taskId = segment.dataset.taskId; // Get task ID of the segment
+    const firstSegmentDropdown = document.querySelector(`.segment[data-task-id='${taskId}'] .category-dropdown`);
+    
+    // If the first segment's dropdown matches the category, update all segments of that task
+    if (firstSegmentDropdown && firstSegmentDropdown.value === categoryName) {
+      segment.style.backgroundColor = color;
+    }
+  });
+}
+
+// Function to remove a category from all dropdowns when deleted
+function removeCategoryFromDropdowns(categoryName) {
+  document.querySelectorAll(".category-dropdown").forEach(dropdown => {
+    const optionToRemove = dropdown.querySelector(`option[value="${categoryName}"]`);
+    if (optionToRemove) {
+      optionToRemove.remove();
+    }
+  });
+
+  // Also reset background color of segments associated with the removed category
+  document.querySelectorAll(".segment").forEach(segment => {
+    const dropdown = segment.querySelector(".category-dropdown");
+    if (dropdown && dropdown.value === categoryName) {
+      segment.style.backgroundColor = ""; // Reset to default
+    }
+  });
+}
+
+// Category creation logic
+document.getElementById("addCategoryBtn").addEventListener("click", function () {
+  console.log("Add button was pressed!");
+
+  const categoriesContainer = document.querySelector(".categories-container");
+
+  if (categoriesContainer.children.length >= 4) {
+    alert("You can only have up to 4 categories!");
+    return;
+  }
+
+  // Create category label container
+  const categoryLabel = document.createElement("div");
+  categoryLabel.classList.add("category-label");
+
+  // Create input field for category name
+  const input = document.createElement("input");
+  input.type = "text";
+  input.placeholder = "Enter category name...";
+  categoryLabel.appendChild(input);
+
+  // Create color picker
+  const colorPicker = document.createElement("input");
+  colorPicker.type = "color";
+  colorPicker.classList.add("category-color");
+  categoryLabel.appendChild(colorPicker);
+
+  // Create delete button
+  const deleteBtn = document.createElement("button");
+  deleteBtn.innerText = "✖";
+  deleteBtn.classList.add("delete-btn");
+  categoryLabel.appendChild(deleteBtn);
+
+  categoriesContainer.appendChild(categoryLabel);
+
+  input.focus();
+
+  let oldCategoryName = "";
+
+  // When user enters a category name, update dropdowns
+  input.addEventListener("change", function () {
+    if (input.value.trim() !== "") {
+      if (oldCategoryName) {
+        removeCategoryFromDropdowns(oldCategoryName);
+      }
+      updateAllDropdowns(input.value, colorPicker.value, oldCategoryName);
+      oldCategoryName = input.value;
+      categoryLabel.dataset.optionValue = input.value;
+      categoryLabel.dataset.optionColor = colorPicker.value;
+    }
+  });
+
+  // When user changes the color, update all task segments linked to this category
+  colorPicker.addEventListener("input", function () {
+    if (input.value.trim() !== "") {
+      updateAllTaskSegments(input.value, colorPicker.value);
+    }
+  });
+
+  // Remove category when delete button is clicked
+  deleteBtn.addEventListener("click", () => {
+    categoriesContainer.removeChild(categoryLabel);
+    removeCategoryFromDropdowns(categoryLabel.dataset.optionValue);
+  });
+});
+
+// Apply category color to all segments when the dropdown selection is changed
+document.addEventListener("change", function (event) {
+  if (event.target.classList.contains("category-dropdown")) {
+    const selectedOption = event.target.options[event.target.selectedIndex];
+    const selectedCategory = selectedOption.value;
+    const selectedColor = selectedOption.dataset.color;
+
+    updateAllTaskSegments(selectedCategory, selectedColor);
+  }
+});

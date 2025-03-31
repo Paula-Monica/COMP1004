@@ -8,6 +8,7 @@ document.querySelector('.info-link').addEventListener('click', function (event) 
 
 //Moves welcome page off screen and removes it
 document.addEventListener('DOMContentLoaded', function () {
+  loadFromLocalStorage();
   const homepage = document.querySelector('.homepage');
   document.querySelector('.cta-button').addEventListener('click', function () {
       homepage.classList.add('hidden-up'); 
@@ -78,7 +79,7 @@ icon.addEventListener('click', () => {
       alert("Please clear previous tasks before adding a new one.");
       return; //Stop execution if segments exist
     }
-  
+    let assignedCategory = document.querySelector('.category-dropdown')?.value || "None";
     const CalculateNoOfTasks = hoursPerWeek / hourSplitSelected;
 
     let newTask = {
@@ -87,6 +88,7 @@ icon.addEventListener('click', () => {
       totalDuration: hoursPerWeek, //Store total duration
       segments: [], //Array to store task segments
       assigned: false,
+      category: assignedCategory
     };
 
     for (let i = 0; i < CalculateNoOfTasks; i++) {
@@ -99,6 +101,7 @@ icon.addEventListener('click', () => {
 
     tasks.push(newTask); //Add task to the task list
     displayTaskSegments(newTask); //Display segments
+    saveToLocalStorage();
   }
 });
 
@@ -169,6 +172,7 @@ function displayTaskSegments(task) {
 
       completeButton.addEventListener("click", () => {
         deleteTask(task.id);
+        saveToLocalStorage();
       });
 
       segmentDiv.appendChild(categoryDropdown);
@@ -472,6 +476,7 @@ function enableDropzones() {
           }
         }
       }
+      saveToLocalStorage();
     });
   });
 };
@@ -578,6 +583,7 @@ document.getElementById("addCategoryBtn").addEventListener("click", function () 
       oldCategoryName = input.value;
       categoryLabel.dataset.optionValue = input.value;
       categoryLabel.dataset.optionColor = colorPicker.value;
+      saveToLocalStorage();
     }
   });
 
@@ -585,6 +591,7 @@ document.getElementById("addCategoryBtn").addEventListener("click", function () 
   colorPicker.addEventListener("input", function () {
     if (input.value.trim() !== "") {
       updateAllTaskSegments(input.value, colorPicker.value);
+      saveToLocalStorage();
     }
   });
 
@@ -592,6 +599,7 @@ document.getElementById("addCategoryBtn").addEventListener("click", function () 
   deleteBtn.addEventListener("click", () => {
     categoriesContainer.removeChild(categoryLabel);
     removeCategoryFromDropdowns(categoryLabel.dataset.optionValue);
+    saveToLocalStorage();
   });
 });
 
@@ -603,5 +611,118 @@ document.addEventListener("change", function (event) {
     const selectedColor = selectedOption.dataset.color;
 
     updateAllTaskSegments(selectedCategory, selectedColor);
+    saveToLocalStorage();
   }
+  saveToLocalStorage();
 });
+
+function saveToLocalStorage() {
+  const dataToSave = {
+    tasks: tasks.map(task => ({
+      ...task,
+      segments: task.segments.map(segment => ({
+        ...segment,
+      })),
+      category: task.category // Include the assigned category
+    })),
+    segmentLocations: {},
+    categories: [],
+    hoursPerWeek: hoursPerWeek,
+    hourSplitSelected: hourSplitSelected || null,
+  };
+
+  // Save segment placement
+  document.querySelectorAll(".segment").forEach(segment => {
+    const taskId = segment.dataset.taskId;
+    const segmentId = segment.dataset.segmentId;
+    const parent = segment.parentElement;
+    const locationClass = parent.classList.contains("dropzone") ? parent.dataset.cellId : parent.className;
+    dataToSave.segmentLocations[`${taskId}_${segmentId}`] = locationClass;
+  });
+
+  // Save categories
+  document.querySelectorAll(".category-label").forEach(label => {
+    const name = label.querySelector("input[type='text']").value;
+    const color = label.querySelector("input[type='color']").value;
+    dataToSave.categories.push({ name, color });
+  });
+
+  localStorage.setItem("taskSchedulerData", JSON.stringify(dataToSave));
+}
+
+// Function to load tasks and settings from local storage
+function loadFromLocalStorage() {
+  const saved = localStorage.getItem("taskSchedulerData");
+  if (!saved) return;
+
+  const data = JSON.parse(saved);
+
+  // Restore categories
+  data.categories.forEach(({ name, color }) => {
+    // Simulate category creation with preset values
+    document.getElementById("addCategoryBtn").click();
+    const lastCategory = document.querySelector(".categories-container .category-label:last-child");
+    const nameInput = lastCategory.querySelector("input[type='text']");
+    const colorPicker = lastCategory.querySelector("input[type='color']");
+
+    nameInput.value = name;
+    colorPicker.value = color;
+
+    nameInput.dispatchEvent(new Event("change"));
+    colorPicker.dispatchEvent(new Event("input"));
+  });
+
+  // Restore tasks and segments
+  data.tasks.forEach(task => {
+    tasks.push(task); // Re-populate tasks array
+    displayTaskSegments(task);
+    
+    // Set the category for each segment
+    const firstSegmentDropdown = document.querySelector(`.segment[data-task-id='${task.id}'] .category-dropdown`);
+    if (firstSegmentDropdown) {
+      firstSegmentDropdown.value = task.category; // Set the stored category for the first segment's dropdown
+      // Update the color of the segment based on the assigned category
+      const selectedColor = firstSegmentDropdown.selectedOptions[0]?.dataset.color;
+      if (selectedColor) {
+        updateAllTaskSegments(task.category, selectedColor); // Update segment color based on the category
+      }
+    }
+  });
+
+  // Restore segment positions
+  Object.entries(data.segmentLocations).forEach(([key, locationClass]) => {
+    const [taskId, segmentId] = key.split("_");
+    const segment = document.querySelector(`.segment[data-task-id='${taskId}'][data-segment-id='${segmentId}']`);
+
+    if (!segment) return;
+
+    const container = document.querySelector(`[data-cell-id='${locationClass}']`);
+    if (container) {
+      container.appendChild(segment);
+    }
+  });
+
+  // Restore hour settings
+  if (data.hoursPerWeek) {
+    hoursPerWeek = data.hoursPerWeek;
+    document.querySelector(".hour-dropdown").value = hoursPerWeek;
+    EditSplitHours(hoursPerWeek);
+  }
+
+  if (data.hourSplitSelected) {
+    hourSplitSelected = data.hourSplitSelected;
+    const radio = document.querySelector(`input[name="hours"][value="${hourSplitSelected}"]`);
+    if (radio) radio.checked = true;
+  }
+}
+
+
+// Ensure segments are saved whenever they are moved
+document.addEventListener("DOMContentLoaded", () => {
+  loadFromLocalStorage();
+
+  document.querySelectorAll(".dropzone").forEach(dropzone => {
+    dropzone.addEventListener("drop", saveToLocalStorage);
+  });
+});
+

@@ -88,7 +88,7 @@ icon.addEventListener('click', () => {
       totalDuration: hoursPerWeek, //Store total duration
       segments: [], //Array to store task segments
       assigned: false,
-      category: assignedCategory
+      category: "None"
     };
 
     for (let i = 0; i < CalculateNoOfTasks; i++) {
@@ -105,125 +105,6 @@ icon.addEventListener('click', () => {
   }
 });
 
-//Shows created tasks
-function displayTaskSegments(task) {
-  task.segments.forEach((segment, index) => {
-    const taskContainer = document.querySelector(`.Task${index + 1}`);
-
-    if (!taskContainer) {
-      console.error(`Error: No task container found for Task${index + 1}`);
-      return;
-    }
-
-    //Create segment element
-    let segmentDiv = document.createElement("div");
-    segmentDiv.classList.add("segment");
-
-    //Assign task and segment IDs for drag-and-drop tracking
-    segmentDiv.dataset.taskId = task.id;
-    segmentDiv.dataset.segmentId = segment.segmentId;
-
-    //Make segment draggable
-    segmentDiv.draggable = true;
-
-    //Task Name
-    let taskNameDiv = document.createElement("div");
-    taskNameDiv.classList.add("task-name");
-    taskNameDiv.textContent = task.name;
-
-    //Hour Split
-    let hourSplitDiv = document.createElement("div");
-    hourSplitDiv.classList.add("hour-split");
-    hourSplitDiv.textContent = `Duration: ${segment.duration}h`;
-
-    segmentDiv.appendChild(taskNameDiv);
-    segmentDiv.appendChild(hourSplitDiv);
-
-    //Only add dropdown and complete button to first segment
-    if (index === 0) {
-      let categoryDropdown = document.createElement("select");
-      categoryDropdown.classList.add("category-dropdown");
-
-      // Retrieve existing categories
-      const existingCategories = document.querySelectorAll(".categories-container .category-label input[type='text']");
-
-      // Add a "None" option
-      let optionNone = document.createElement("option");
-      optionNone.value = "None";
-      optionNone.textContent = "None";
-      categoryDropdown.appendChild(optionNone);
-
-      // Add all existing categories
-      existingCategories.forEach(categoryInput => {
-        let categoryName = categoryInput.value;
-        let categoryColor = categoryInput.nextElementSibling.value; // Get color from color picker
-
-        let categoryOption = document.createElement("option");
-        categoryOption.value = categoryName;
-        categoryOption.textContent = categoryName;
-        categoryOption.dataset.color = categoryColor;
-
-        categoryDropdown.appendChild(categoryOption);
-      });
-
-      categoryDropdown.addEventListener("change", function() {
-        // Find the task in the tasks array
-        const task = tasks.find(t => t.id === parseInt(segmentDiv.dataset.taskId));
-        if (task) {
-          // Update the task's category
-          task.category = this.value;
-          
-          // Update the background color based on the selected option
-          const selectedOption = this.options[this.selectedIndex];
-          const selectedColor = selectedOption.dataset.color;
-          
-          // Apply color to all segments of this task
-          updateAllTaskSegments(this.value, selectedColor);
-          
-          // Save to localStorage
-          saveToLocalStorage();
-        }
-      });
-
-      if (task.category && task.category !== "None") {
-        // Set the dropdown to the saved category
-        categoryDropdown.value = task.category;
-        
-        // Find the selected option to get its color
-        const selectedOption = categoryDropdown.querySelector(`option[value="${task.category}"]`);
-        if (selectedOption && selectedOption.dataset.color) {
-          // Apply the color to the segment
-          segmentDiv.style.backgroundColor = selectedOption.dataset.color;
-        }
-      }
-      
-      segmentDiv.appendChild(categoryDropdown);
-      segmentDiv.appendChild(completeButton);
-
-      let completeButton = document.createElement("button");
-      completeButton.classList.add("complete-btn");
-      completeButton.textContent = "Complete";
-
-      completeButton.addEventListener("click", () => {
-        deleteTask(task.id);
-        saveToLocalStorage();
-      });
-
-      segmentDiv.appendChild(categoryDropdown);
-      segmentDiv.appendChild(completeButton);
-    }
-
-    //Attach drag event
-    segmentDiv.addEventListener("dragstart", (event) => {
-      event.dataTransfer.setData("text/plain", JSON.stringify({
-        taskId: task.id,
-        segmentId: segment.segmentId
-      }));
-    });
-
-    taskContainer.appendChild(segmentDiv);
-  });
-}
 
 function deleteTask(taskId) {
   // Find the task by ID
@@ -424,15 +305,16 @@ function displayTaskSegments(task) {
     if (index === 0) {
       let categoryDropdown = document.createElement("select");
       categoryDropdown.classList.add("category-dropdown");
-
-      // Retrieve existing categories
-      const existingCategories = document.querySelectorAll(".categories-container .category-label input[type='text']");
-
+      
       // Add a "None" option
       let optionNone = document.createElement("option");
       optionNone.value = "None";
       optionNone.textContent = "None";
       categoryDropdown.appendChild(optionNone);
+
+      // Retrieve existing categories
+      const existingCategories = document.querySelectorAll(".categories-container .category-label input[type='text']");
+
 
       // Add all existing categories
       existingCategories.forEach(categoryInput => {
@@ -446,7 +328,24 @@ function displayTaskSegments(task) {
 
         categoryDropdown.appendChild(categoryOption);
       });
-
+      
+      // Set the dropdown's selected value
+    if (task.category && task.category !== "None") {
+      categoryDropdown.value = task.category;
+      
+      // Find the selected option to get its color
+      const selectedOption = Array.from(categoryDropdown.options)
+        .find(option => option.value === task.category);
+        
+      if (selectedOption && selectedOption.dataset.color) {
+        segmentDiv.style.backgroundColor = selectedOption.dataset.color;
+      }
+    } else {
+      // Ensure "None" is explicitly selected for new tasks
+      categoryDropdown.value = "None";
+      segmentDiv.style.backgroundColor = ""; // Reset background color
+    }
+      
       let completeButton = document.createElement("button");
       completeButton.classList.add("complete-btn");
       completeButton.textContent = "Complete";
@@ -644,7 +543,6 @@ document.addEventListener("change", function (event) {
   if (event.target.classList.contains("category-dropdown")) {
     const selectedOption = event.target.options[event.target.selectedIndex];
     const selectedCategory = selectedOption.value;
-    const selectedColor = selectedOption.dataset.color;
     
     // Get the task ID of the segment containing this dropdown
     const segmentEl = event.target.closest('.segment');
@@ -656,12 +554,18 @@ document.addEventListener("change", function (event) {
       if (task) {
         task.category = selectedCategory;
       }
+      
+      // Update background color based on selection
+      if (selectedCategory === "None") {
+        // Clear background color when "None" is selected
+        segmentEl.style.backgroundColor = "";
+      } else if (selectedOption.dataset.color) {
+        // Apply the color from the selected option
+        segmentEl.style.backgroundColor = selectedOption.dataset.color;
+      }
     }
-
-    updateAllTaskSegments(selectedCategory, selectedColor);
     saveToLocalStorage();
   }
-  saveToLocalStorage();
 });
 
 // Function to save all app data to localStorage
@@ -682,7 +586,12 @@ function loadFromLocalStorage() {
   if (savedData) {
     const parsedData = JSON.parse(savedData);
     
-    // Restore tasks
+    // First restore categories
+    if (parsedData.categories) {
+      restoreCategories(parsedData.categories);
+    }
+    
+    // Then restore tasks
     tasks = parsedData.tasks || [];
     
     // Display all tasks in the task list
@@ -690,18 +599,12 @@ function loadFromLocalStorage() {
       displayTaskSegments(task);
     });
     
-    // Restore categories
-    if (parsedData.categories) {
-      restoreCategories(parsedData.categories);
-    }
-    
-    // Restore timetable state
+    // Finally restore timetable state
     if (parsedData.timetable) {
       restoreTimetableState(parsedData.timetable);
     }
   }
 }
-
 // Helper function to save the current state of the timetable
 function saveTimetableState() {
   const timetableState = [];
@@ -875,3 +778,4 @@ function restoreCategories(categories) {
     updateAllDropdowns(category.name, category.color);
   });
 }
+//

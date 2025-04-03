@@ -166,6 +166,40 @@ function displayTaskSegments(task) {
         categoryDropdown.appendChild(categoryOption);
       });
 
+      categoryDropdown.addEventListener("change", function() {
+        // Find the task in the tasks array
+        const task = tasks.find(t => t.id === parseInt(segmentDiv.dataset.taskId));
+        if (task) {
+          // Update the task's category
+          task.category = this.value;
+          
+          // Update the background color based on the selected option
+          const selectedOption = this.options[this.selectedIndex];
+          const selectedColor = selectedOption.dataset.color;
+          
+          // Apply color to all segments of this task
+          updateAllTaskSegments(this.value, selectedColor);
+          
+          // Save to localStorage
+          saveToLocalStorage();
+        }
+      });
+
+      if (task.category && task.category !== "None") {
+        // Set the dropdown to the saved category
+        categoryDropdown.value = task.category;
+        
+        // Find the selected option to get its color
+        const selectedOption = categoryDropdown.querySelector(`option[value="${task.category}"]`);
+        if (selectedOption && selectedOption.dataset.color) {
+          // Apply the color to the segment
+          segmentDiv.style.backgroundColor = selectedOption.dataset.color;
+        }
+      }
+      
+      segmentDiv.appendChild(categoryDropdown);
+      segmentDiv.appendChild(completeButton);
+
       let completeButton = document.createElement("button");
       completeButton.classList.add("complete-btn");
       completeButton.textContent = "Complete";
@@ -589,6 +623,8 @@ document.getElementById("addCategoryBtn").addEventListener("click", function () 
 
   // When user changes the color, update all task segments linked to this category
   colorPicker.addEventListener("input", function () {
+    categoryLabel.dataset.optionColor = colorPicker.value;
+    
     if (input.value.trim() !== "") {
       updateAllTaskSegments(input.value, colorPicker.value);
       saveToLocalStorage();
@@ -609,6 +645,18 @@ document.addEventListener("change", function (event) {
     const selectedOption = event.target.options[event.target.selectedIndex];
     const selectedCategory = selectedOption.value;
     const selectedColor = selectedOption.dataset.color;
+    
+    // Get the task ID of the segment containing this dropdown
+    const segmentEl = event.target.closest('.segment');
+    if (segmentEl) {
+      const taskId = parseInt(segmentEl.dataset.taskId);
+      
+      // Update the task's category in the tasks array
+      const task = tasks.find(t => t.id === taskId);
+      if (task) {
+        task.category = selectedCategory;
+      }
+    }
 
     updateAllTaskSegments(selectedCategory, selectedColor);
     saveToLocalStorage();
@@ -616,113 +664,214 @@ document.addEventListener("change", function (event) {
   saveToLocalStorage();
 });
 
+// Function to save all app data to localStorage
 function saveToLocalStorage() {
   const dataToSave = {
-    tasks: tasks.map(task => ({
-      ...task,
-      segments: task.segments.map(segment => ({
-        ...segment,
-      })),
-      category: task.category // Include the assigned category
-    })),
-    segmentLocations: {},
-    categories: [],
-    hoursPerWeek: hoursPerWeek,
-    hourSplitSelected: hourSplitSelected || null,
+    tasks: tasks,
+    timetable: saveTimetableState(),
+    categories: saveCategories()
   };
-
-  // Save segment placement
-  document.querySelectorAll(".segment").forEach(segment => {
-    const taskId = segment.dataset.taskId;
-    const segmentId = segment.dataset.segmentId;
-    const parent = segment.parentElement;
-    const locationClass = parent.classList.contains("dropzone") ? parent.dataset.cellId : parent.className;
-    dataToSave.segmentLocations[`${taskId}_${segmentId}`] = locationClass;
-  });
-
-  // Save categories
-  document.querySelectorAll(".category-label").forEach(label => {
-    const name = label.querySelector("input[type='text']").value;
-    const color = label.querySelector("input[type='color']").value;
-    dataToSave.categories.push({ name, color });
-  });
-
-  localStorage.setItem("taskSchedulerData", JSON.stringify(dataToSave));
+  
+  localStorage.setItem('studySchedulerData', JSON.stringify(dataToSave));
 }
 
-// Function to load tasks and settings from local storage
+// Function to load data from localStorage
 function loadFromLocalStorage() {
-  const saved = localStorage.getItem("taskSchedulerData");
-  if (!saved) return;
-
-  const data = JSON.parse(saved);
-
-  // Restore categories
-  data.categories.forEach(({ name, color }) => {
-    // Simulate category creation with preset values
-    document.getElementById("addCategoryBtn").click();
-    const lastCategory = document.querySelector(".categories-container .category-label:last-child");
-    const nameInput = lastCategory.querySelector("input[type='text']");
-    const colorPicker = lastCategory.querySelector("input[type='color']");
-
-    nameInput.value = name;
-    colorPicker.value = color;
-
-    nameInput.dispatchEvent(new Event("change"));
-    colorPicker.dispatchEvent(new Event("input"));
-  });
-
-  // Restore tasks and segments
-  data.tasks.forEach(task => {
-    tasks.push(task); // Re-populate tasks array
-    displayTaskSegments(task);
+  const savedData = localStorage.getItem('studySchedulerData');
+  
+  if (savedData) {
+    const parsedData = JSON.parse(savedData);
     
-    // Set the category for each segment
-    const firstSegmentDropdown = document.querySelector(`.segment[data-task-id='${task.id}'] .category-dropdown`);
-    if (firstSegmentDropdown) {
-      firstSegmentDropdown.value = task.category; // Set the stored category for the first segment's dropdown
-      // Update the color of the segment based on the assigned category
-      const selectedColor = firstSegmentDropdown.selectedOptions[0]?.dataset.color;
-      if (selectedColor) {
-        updateAllTaskSegments(task.category, selectedColor); // Update segment color based on the category
+    // Restore tasks
+    tasks = parsedData.tasks || [];
+    
+    // Display all tasks in the task list
+    tasks.forEach(task => {
+      displayTaskSegments(task);
+    });
+    
+    // Restore categories
+    if (parsedData.categories) {
+      restoreCategories(parsedData.categories);
+    }
+    
+    // Restore timetable state
+    if (parsedData.timetable) {
+      restoreTimetableState(parsedData.timetable);
+    }
+  }
+}
+
+// Helper function to save the current state of the timetable
+function saveTimetableState() {
+  const timetableState = [];
+  
+  // Save state of each cell in the timetable
+  document.querySelectorAll('.dropzone').forEach(cell => {
+    const cellId = cell.dataset.cellId;
+    const backgroundColor = window.getComputedStyle(cell).backgroundColor;
+    const segments = [];
+    
+    // Save segments in this cell
+    cell.querySelectorAll('.segment').forEach(segment => {
+      segments.push({
+        taskId: segment.dataset.taskId,
+        segmentId: segment.dataset.segmentId
+      });
+    });
+    
+    timetableState.push({
+      cellId: cellId,
+      backgroundColor: backgroundColor,
+      segments: segments
+    });
+  });
+  
+  return timetableState;
+}
+
+// Helper function to restore the timetable state
+function restoreTimetableState(timetableState) {
+  timetableState.forEach(cellState => {
+    const cell = document.querySelector(`.dropzone[data-cell-id="${cellState.cellId}"]`);
+    
+    if (cell) {
+      // Restore background color (only if it's the selected green color)
+      if (cellState.backgroundColor === 'rgb(193, 219, 181)') {
+        cell.style.backgroundColor = 'rgb(193, 219, 181)';
+      }
+      
+      // Restore segments
+      cellState.segments.forEach(segmentData => {
+        const taskId = parseInt(segmentData.taskId);
+        const segmentId = parseInt(segmentData.segmentId);
+        
+        // Find the task and segment
+        const task = tasks.find(t => t.id === taskId);
+        
+        if (task) {
+          const segment = task.segments.find(s => s.segmentId === segmentId);
+          
+          if (segment) {
+            // Mark the segment as assigned
+            segment.assigned = true;
+            
+            // Find the segment element in the task containers
+            const segmentElement = document.querySelector(`.segment[data-task-id="${taskId}"][data-segment-id="${segmentId}"]`);
+            
+            if (segmentElement) {
+              // Move it to the cell
+              cell.appendChild(segmentElement);
+              segmentElement.style.position = "static";
+              segmentElement.style.marginBottom = '5px';
+              segmentElement.style.height = '120px';
+            }
+          }
+        }
+      });
+    }
+  });
+  document.querySelectorAll('.segment').forEach(segmentEl => {
+    const taskId = parseInt(segmentEl.dataset.taskId);
+    const task = tasks.find(t => t.id === taskId);
+    
+    if (task && task.category && task.category !== "None") {
+      // Find category color from any dropdown
+      const anyDropdown = document.querySelector('.category-dropdown');
+      if (anyDropdown) {
+        const option = anyDropdown.querySelector(`option[value="${task.category}"]`);
+        if (option && option.dataset.color) {
+          segmentEl.style.backgroundColor = option.dataset.color;
+        }
       }
     }
   });
-
-  // Restore segment positions
-  Object.entries(data.segmentLocations).forEach(([key, locationClass]) => {
-    const [taskId, segmentId] = key.split("_");
-    const segment = document.querySelector(`.segment[data-task-id='${taskId}'][data-segment-id='${segmentId}']`);
-
-    if (!segment) return;
-
-    const container = document.querySelector(`[data-cell-id='${locationClass}']`);
-    if (container) {
-      container.appendChild(segment);
-    }
-  });
-
-  // Restore hour settings
-  if (data.hoursPerWeek) {
-    hoursPerWeek = data.hoursPerWeek;
-    document.querySelector(".hour-dropdown").value = hoursPerWeek;
-    EditSplitHours(hoursPerWeek);
-  }
-
-  if (data.hourSplitSelected) {
-    hourSplitSelected = data.hourSplitSelected;
-    const radio = document.querySelector(`input[name="hours"][value="${hourSplitSelected}"]`);
-    if (radio) radio.checked = true;
-  }
 }
 
-
-// Ensure segments are saved whenever they are moved
-document.addEventListener("DOMContentLoaded", () => {
-  loadFromLocalStorage();
-
-  document.querySelectorAll(".dropzone").forEach(dropzone => {
-    dropzone.addEventListener("drop", saveToLocalStorage);
+// Helper function to save categories
+function saveCategories() {
+  const categories = [];
+  
+  document.querySelectorAll('.category-label').forEach(categoryLabel => {
+    const nameInput = categoryLabel.querySelector('input[type="text"]');
+    const colorPicker = categoryLabel.querySelector('input[type="color"]');
+    
+    if (nameInput && colorPicker && nameInput.value.trim() !== '') {
+      categories.push({
+        name: nameInput.value,
+        color: colorPicker.value
+      });
+    }
   });
-});
+  
+  return categories;
+}
 
+// Helper function to restore categories
+function restoreCategories(categories) {
+  const categoriesContainer = document.querySelector('.categories-container');
+  const addCategoryBtn = document.getElementById('addCategoryBtn');
+  
+  categories.forEach(category => {
+    // Create category label container
+    const categoryLabel = document.createElement("div");
+    categoryLabel.classList.add("category-label");
+    categoryLabel.dataset.optionValue = category.name;
+    categoryLabel.dataset.optionColor = category.color;
+
+    // Create input field for category name
+    const input = document.createElement("input");
+    input.type = "text";
+    input.value = category.name;
+    categoryLabel.appendChild(input);
+
+    // Create color picker
+    const colorPicker = document.createElement("input");
+    colorPicker.type = "color";
+    colorPicker.classList.add("category-color");
+    colorPicker.value = category.color;
+    categoryLabel.appendChild(colorPicker);
+
+    // Create delete button
+    const deleteBtn = document.createElement("button");
+    deleteBtn.innerText = "✖";
+    deleteBtn.classList.add("delete-btn");
+    categoryLabel.appendChild(deleteBtn);
+
+    categoriesContainer.appendChild(categoryLabel);
+
+    // When user enters a category name, update dropdowns
+    let oldCategoryName = category.name;
+    input.addEventListener("change", function () {
+      if (input.value.trim() !== "") {
+        if (oldCategoryName) {
+          removeCategoryFromDropdowns(oldCategoryName);
+        }
+        updateAllDropdowns(input.value, colorPicker.value, oldCategoryName);
+        oldCategoryName = input.value;
+        categoryLabel.dataset.optionValue = input.value;
+        categoryLabel.dataset.optionColor = colorPicker.value;
+        saveToLocalStorage();
+      }
+    });
+
+    colorPicker.addEventListener("input", function () {
+      categoryLabel.dataset.optionColor = colorPicker.value;
+      
+      if (input.value.trim() !== "") {
+        updateAllTaskSegments(input.value, colorPicker.value);
+        saveToLocalStorage();
+      }
+    });
+
+    // Remove category when delete button is clicked
+    deleteBtn.addEventListener("click", () => {
+      categoriesContainer.removeChild(categoryLabel);
+      removeCategoryFromDropdowns(categoryLabel.dataset.optionValue);
+      saveToLocalStorage();
+    });
+    
+    // Update all dropdown menus with this category
+    updateAllDropdowns(category.name, category.color);
+  });
+}
